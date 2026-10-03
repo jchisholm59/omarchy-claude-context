@@ -33,9 +33,10 @@ the live session. "Last API call sent N tokens" is read from the session's trans
 omarchy plugin add https://github.com/jchisholm59/omarchy-claude-context.git --enable
 ```
 
-Needs [Claude Code](https://claude.com/claude-code) and `python3` (part of a stock Omarchy install). No sudo
-or pkexec is required. The script looks for `claude` on `PATH`, then in `~/.local/bin`, `~/.claude/local` and
-mise's install directory, since Omarchy's shell doesn't see a terminal's PATH.
+Needs [Claude Code](https://claude.com/claude-code) and `python3` (part of a stock Omarchy install).
+No sudo or pkexec is required.
+The script looks for `claude` on `PATH`, then in `~/.local/bin`, `~/.claude/local` and mise's install directory,
+since Omarchy's shell doesn't see a terminal's PATH.
 
 To put it right after the Agents icon: `omarchy bar move jim.claude-context --section right`, or use
 [Widget Controller](https://github.com/jchisholm59/omarchy-widget-controller).
