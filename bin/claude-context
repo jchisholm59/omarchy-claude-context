@@ -1,0 +1,141 @@
+#!/usr/bin/python3
+"""Context-window breakdown for a Claude Code session, as JSON, for the Claude Context Omarchy widget.
+
+  claude-context --list       recent sessions (newest first)
+  claude-context [SESSION]    /context for SESSION (default: the newest), as JSON
+
+The breakdown is Claude Code's own /context, run on a throwaway fork of the session
+(--resume --fork-session --no-session-persistence): the real session is never written to,
+and no API call is made. It runs non-interactively, so tool sizes can differ a little
+from what /context shows inside the live session; "lastRequest" is the exact input size of
+the session's last API call, read from its transcript.
+"""
+
+import glob
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+import time
+
+PROJECTS = os.path.expanduser("~/.claude/projects")
+# The shell's PATH often lacks mise/npm dirs, so also try the usual install locations.
+CLAUDE_CANDIDATES = ["~/.local/bin/claude", "~/.claude/local/claude",
+                     "~/.local/share/mise/installs/claude/latest/claude", "~/.local/share/mise/shims/claude"]
+
+
+def find_claude():
+    found = shutil.which("claude")
+    if found:
+        return found
+    for path in map(os.path.expanduser, CLAUDE_CANDIDATES):
+        if os.access(path, os.X_OK):
+            return path
+    return None
+
+MAX_SESSIONS = 8
+
+
+def sessions():
+    files = [f for f in glob.glob(f"{PROJECTS}/*/*.jsonl") if os.path.getsize(f) > 0]
+    files.sort(key=os.path.getmtime, reverse=True)
+    out = []
+    for path in files[:MAX_SESSIONS]:
+        info = {"id": os.path.basename(path)[:-6], "path": path, "mtime": os.path.getmtime(path),
+                "title": "", "firstPrompt": "", "cwd": "", "model": "", "lastRequest": 0}
+        try:
+            with open(path, encoding="utf-8", errors="replace") as fh:
+                for line in fh:
+                    try:
+                        rec = json.loads(line)
+                    except ValueError:
+                        continue
+                    kind = rec.get("type")
+                    if kind in ("custom-title", "ai-title"):
+                        title = rec.get("customTitle") or rec.get("aiTitle")
+                        # A title the user set wins over the generated one.
+                        if title and (kind == "custom-title" or not info.get("custom")):
+                            info["title"] = title
+                            info["custom"] = info.get("custom") or kind == "custom-title"
+                    # The directory the session started in decides its project (and memory).
+                    if rec.get("cwd") and not info["cwd"]:
+                        info["cwd"] = rec["cwd"]
+                    if kind == "user" and not info["firstPrompt"] and not rec.get("isMeta"):
+                        content = (rec.get("message") or {}).get("content")
+                        if isinstance(content, str) and not content.startswith("<"):
+                            info["firstPrompt"] = " ".join(content.split())[:80]
+                    if kind == "assistant" and not rec.get("isSidechain"):
+                        msg = rec.get("message") or {}
+                        usage = msg.get("usage") or {}
+                        total = sum(int(usage.get(k) or 0) for k in
+                                    ("input_tokens", "cache_read_input_tokens", "cache_creation_input_tokens"))
+                        if total:
+                            info["lastRequest"] = total
+                            info["model"] = msg.get("model") or info["model"]
+        except OSError:
+            continue
+        info.pop("custom", None)
+        if not info["lastRequest"]:
+            continue   # never reached the API (e.g. a bare `claude -p /context`)
+        info["title"] = info["title"] or info["firstPrompt"] or info["id"][:8]
+        out.append(info)
+    return out
+
+
+def parse_tokens(text):
+    m = re.match(r"([\d.]+)\s*([kKmM]?)", text.strip())
+    if not m:
+        return 0
+    return round(float(m.group(1)) * {"": 1, "k": 1e3, "m": 1e6}[m.group(2).lower()])
+
+
+def context(session):
+    claude = find_claude()
+    if not claude:
+        return {"session": session, "error": "claude not found (looked on PATH and in ~/.local, ~/.claude, mise)"}
+    cwd = session["cwd"] if os.path.isdir(session["cwd"]) else os.path.expanduser("~")
+    proc = subprocess.run(
+        [claude, "-p", "--resume", session["id"], "--fork-session", "--no-session-persistence", "/context"],
+        cwd=cwd, capture_output=True, text=True, timeout=120, stdin=subprocess.DEVNULL)
+    text = proc.stdout
+    result = {"session": session, "model": "", "used": 0, "window": 0, "categories": [], "updatedAt": time.time()}
+    m = re.search(r"\*\*Model:\*\*\s*(\S+)", text)
+    if m:
+        result["model"] = m.group(1)
+    m = re.search(r"\*\*Tokens:\*\*\s*([\d.]+\s*[kKmM]?)\s*/\s*([\d.]+\s*[kKmM]?)", text)
+    if m:
+        result["used"], result["window"] = parse_tokens(m.group(1)), parse_tokens(m.group(2))
+    section = re.search(r"### Estimated usage by category(.*?)(\n###|\Z)", text, re.S)
+    for row in (section.group(1) if section else "").splitlines():
+        cells = [c.strip() for c in row.strip().strip("|").split("|")]
+        if len(cells) != 3 or cells[0] in ("Category", "") or set(cells[0]) <= {"-"}:
+            continue
+        result["categories"].append({"name": cells[0], "tokens": parse_tokens(cells[1])})
+    if not result["window"]:
+        result["error"] = (proc.stderr.strip() or text.strip() or "no /context output")[:300]
+    return result
+
+
+def main():
+    args = sys.argv[1:]
+    found = sessions()
+    if args[:1] == ["--list"]:
+        print(json.dumps(found))
+        return
+    if not found:
+        print(json.dumps({"error": "no Claude Code sessions found"}))
+        return
+    wanted = next((s for s in found if args and s["id"] == args[0]), None) if args else found[0]
+    if wanted is None:
+        print(json.dumps({"error": f"session {args[0]} not found"}))
+        return
+    try:
+        print(json.dumps(context(wanted)))
+    except (OSError, subprocess.SubprocessError) as e:
+        print(json.dumps({"session": wanted, "error": str(e)}))
+
+
+if __name__ == "__main__":
+    main()
