@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "jim.claude-context",
   "name": "Claude Context",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "author": "jim",
   "license": "MIT",
   "description": "Claude Code's /context in a bar panel: the context-window grid, a per-category legend with tokens and share, and a picker for recent sessions.",
