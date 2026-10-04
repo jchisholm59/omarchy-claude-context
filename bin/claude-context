@@ -6,9 +6,11 @@
 
 The breakdown is Claude Code's own /context, run on a throwaway fork of the session
 (--resume --fork-session --no-session-persistence): the real session is never written to,
-and no API call is made. It runs non-interactively, so tool sizes can differ a little
-from what /context shows inside the live session; "lastRequest" is the exact input size of
-the session's last API call, read from its transcript.
+and no API call is made. It runs with the project's hooks, settings and MCP servers switched
+off (see ISOLATION_ARGS), so inspecting a session never executes anything from its repo. It runs
+non-interactively, so tool sizes can differ a little from what /context shows inside the live
+session (and MCP tools are not counted); "lastRequest" is the exact input size of the session's
+last API call, read from its transcript.
 """
 
 import glob
@@ -21,6 +23,17 @@ import sys
 import time
 
 PROJECTS = os.path.expanduser("~/.claude/projects")
+
+# /context has to run from the session's own project directory (that's where --resume finds the
+# session), but a plain headless `claude -p` there would load that project's hooks
+# (.claude/settings*.json) and MCP servers (.mcp.json) with no approval prompt, and forking a
+# session still fires its startup hooks. So a repo changed after the session was saved could run
+# code just because the panel was opened. These flags make the inspection run none of it:
+#   --setting-sources user      skip the project and local settings, which is where a repo's hooks live
+#   --settings disableAllHooks  also skip hooks from your own user settings
+#   --strict-mcp-config         with no --mcp-config given, start no MCP servers at all
+ISOLATION_ARGS = ["--setting-sources", "user", "--settings", '{"disableAllHooks": true}', "--strict-mcp-config"]
+
 # The shell's PATH often lacks mise/npm dirs, so also try the usual install locations.
 CLAUDE_CANDIDATES = ["~/.local/bin/claude", "~/.claude/local/claude",
                      "~/.local/share/mise/installs/claude/latest/claude", "~/.local/share/mise/shims/claude"]
@@ -97,7 +110,8 @@ def context(session):
         return {"session": session, "error": "claude not found (looked on PATH and in ~/.local, ~/.claude, mise)"}
     cwd = session["cwd"] if os.path.isdir(session["cwd"]) else os.path.expanduser("~")
     proc = subprocess.run(
-        [claude, "-p", "--resume", session["id"], "--fork-session", "--no-session-persistence", "/context"],
+        [claude, "-p", "--resume", session["id"], "--fork-session", "--no-session-persistence",
+         *ISOLATION_ARGS, "/context"],
         cwd=cwd, capture_output=True, text=True, timeout=120, stdin=subprocess.DEVNULL)
     text = proc.stdout
     result = {"session": session, "model": "", "used": 0, "window": 0, "categories": [], "updatedAt": time.time()}
