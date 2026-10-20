@@ -5,6 +5,7 @@ import Quickshell
 import Quickshell.Io
 import qs.Commons
 import qs.Ui
+import qs.Commons as Commons
 
 // Claude Context: Claude Code's /context as a bar panel. A 20x10 grid where each
 // cell is 0.5% of the context window, coloured by category; a legend with tokens
@@ -37,9 +38,9 @@ Panel {
     "Messages": "#8C83C9"
   })
   readonly property color otherColour: "#D2689C"
-  readonly property color dim: Qt.darker(Color.popups.text, 1.6)
-  readonly property color freeBorder: Util.alpha(Color.popups.text, 0.18)
-  readonly property color bufferFill: Util.alpha(Color.urgent, 0.35)
+  readonly property color dim: Qt.darker(Commons.Color.popups.text, 1.6)
+  readonly property color freeBorder: Util.alpha(Commons.Color.popups.text, 0.18)
+  readonly property color bufferFill: Util.alpha(Commons.Color.urgent, 0.35)
 
   property var ctx: null          // last claude-context result
   property var sessions: []
@@ -192,7 +193,7 @@ Panel {
   // ---------------------------------------------------------------- panel
 
   component Label: Text {
-    color: Color.popups.text
+    color: Commons.Color.popups.text
     font.family: Style.font.family
     font.pixelSize: Style.font.body
     elide: Text.ElideRight
@@ -235,9 +236,9 @@ Panel {
             Layout.fillWidth: true
             implicitHeight: pickRow.implicitHeight + Style.space(12)
             radius: Style.cornerRadius
-            color: pickMouse.containsMouse || root.pickerOpen ? Util.alpha(Color.popups.text, 0.08) : "transparent"
+            color: pickMouse.containsMouse || root.pickerOpen ? Util.alpha(Commons.Color.popups.text, 0.08) : "transparent"
             border.width: Math.max(1, Style.space(1))
-            border.color: Util.alpha(Color.popups.text, 0.15)
+            border.color: Util.alpha(Commons.Color.popups.text, 0.15)
 
             ColumnLayout {
               id: pickRow
@@ -292,7 +293,7 @@ Panel {
                 Layout.fillWidth: true
                 implicitHeight: itemCol.implicitHeight + Style.space(10)
                 radius: Style.cornerRadius
-                color: itemMouse.containsMouse ? Util.alpha(Color.popups.text, 0.08) : "transparent"
+                color: itemMouse.containsMouse ? Util.alpha(Commons.Color.popups.text, 0.08) : "transparent"
                 ColumnLayout {
                   id: itemCol
                   anchors.left: parent.left
@@ -301,7 +302,7 @@ Panel {
                   anchors.leftMargin: Style.space(10)
                   anchors.rightMargin: Style.space(10)
                   spacing: 0
-                  Label { Layout.fillWidth: true; text: item.info.title; font.bold: item.current; color: item.current ? Color.accent : Color.popups.text }
+                  Label { Layout.fillWidth: true; text: item.info.title; font.bold: item.current; color: item.current ? Commons.Color.accent : Commons.Color.popups.text }
                   Label { Layout.fillWidth: true; text: item.info.meta; color: root.dim; font.pixelSize: Style.font.bodySmall }
                 }
                 MouseArea {
@@ -322,7 +323,7 @@ Panel {
             wrapMode: Text.Wrap
             elide: Text.ElideNone
             text: root.running || !root.ctx ? "Running /context…" : "Couldn't read context: " + (root.ctx.error || "unknown error")
-            color: root.running || !root.ctx ? root.dim : Color.urgent
+            color: root.running || !root.ctx ? root.dim : Commons.Color.urgent
           }
 
           // Headline: model, tokens used of the window
@@ -337,7 +338,7 @@ Panel {
               text: root.hasData ? root.formatTokens(root.ctx.used) + " / " + root.formatTokens(root.ctx.window)
                 + " (" + Math.round(root.ctx.used / root.ctx.window * 100) + "%)" : ""
               font.bold: !root.running
-              color: root.running ? root.dim : Color.popups.text
+              color: root.running ? root.dim : Commons.Color.popups.text
             }
           }
 
@@ -358,7 +359,7 @@ Panel {
                 radius: Math.max(2, Style.space(3))
                 color: modelData === "free" ? "transparent" : modelData === "buffer" ? root.bufferFill : modelData
                 border.width: modelData === "free" || modelData === "buffer" ? 1 : 0
-                border.color: modelData === "buffer" ? Util.alpha(Color.urgent, 0.6) : root.freeBorder
+                border.color: modelData === "buffer" ? Util.alpha(Commons.Color.urgent, 0.6) : root.freeBorder
               }
             }
           }
@@ -384,17 +385,17 @@ Panel {
                   radius: Math.max(2, Style.space(2))
                   color: row.isBuffer ? root.bufferFill : row.loaded ? root.colourFor(row.modelData.name) : "transparent"
                   border.width: row.loaded && !row.isBuffer ? 0 : 1
-                  border.color: row.isBuffer ? Util.alpha(Color.urgent, 0.6) : root.freeBorder
+                  border.color: row.isBuffer ? Util.alpha(Commons.Color.urgent, 0.6) : root.freeBorder
                 }
                 Label {
                   Layout.fillWidth: true
                   text: row.modelData.name
-                  color: row.loaded || row.isFree || row.isBuffer ? Color.popups.text : root.dim
+                  color: row.loaded || row.isFree || row.isBuffer ? Commons.Color.popups.text : root.dim
                 }
                 Label {
                   text: root.formatTokens(row.modelData.tokens)
                   font.bold: row.loaded
-                  color: row.loaded ? Color.popups.text : root.dim
+                  color: row.loaded ? Commons.Color.popups.text : root.dim
                   horizontalAlignment: Text.AlignRight
                   Layout.preferredWidth: Style.space(52)
                 }
@@ -436,7 +437,7 @@ Panel {
             }
             Button {
               text: "Refresh"
-              foreground: Color.popups.text
+              foreground: Commons.Color.popups.text
               bordered: true
               enabled: !root.running
               tooltipText: "Run /context again (R)"
